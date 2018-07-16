@@ -1,0 +1,116 @@
+Yoloで学習させるためには以下のものを準備する。
+
+■1. 学習用データの準備
+
+データ保存用のディレクトリを作る。この例では、~/data/wrsとする。
+Yolo学習用データセット作成ツールlabelImgを使い学習用の画像ファイルとアノテーションファイルを作る。
+アノテーションファイルはYoloで検出オブジェクトのクラスと矩形の位置・サイズが格納されており、画像ファイルと同じ名前で拡張子が異なる。
+クラス番号は0から始まる。
+
+作成した全ファイルをデータ保存用ディレクトリ~/data/wrsに移動する。
+
+Yoloの訓練用ファイルtrain.list、テスト用ファイルtest.listを作成するプログラムをgithubからクローンする。
+
+cd ~/src
+git clone https://github.com/demulab/divide_files.git
+
+ビルド・実行
+gcc -o divide_files divide_files.c
+cd ~/data/wrs
+~/src/divide_files/divide_files [テストデータの割合]
+
+ここで [テストデータの割合]に全データに対するテストデータの割合を入れる。
+例えば、テストデータを30%にしたければ0.3とする。引数を省略するとテストデータを20%にする。
+
+成功すると~/data/wrs/train.listと~/data/wrs/test.listができる。
+
+■2． 設定ファイル
+データ設定ファイル： ~/src/darknet/cfgディレクトリの中に以下の内容のデータ設定ファイルを作る。
+classesは識別するクラス数（この例では、おにぎり、サンドイッチ、弁当の３つのクラスがあるので3としている）、
+上で作成したtrainは訓練用ファイル、validはテスト用ファイル、namesはクラス名ファイル、backupは学習の途中のウェイトを保存するディレクトリ。
+この例では、データ設定ファイル名を~/src/darknet/cfg/wrs.dataとする。
+
+classes=3
+train = /home/user_name/data/wrs/train.list
+valid = /home/user_name/data/wrs/test.list
+names = /home/user_name/data/wrs/names.list
+backup = /home/user_name/data/wrs/backup
+
+クラス名ファイル: 識別するクラス名。この例では、ファイル名を~/src/darknet/data/wrs/names.listとし、クラスが3つあるので、各クラスに名前をつける。
+ファイルの中身は以下のとおり。１行に１クラス名なので改行が必要。例えば、10クラスあれば10行になる。
+onigiri
+sandwich
+bento
+
+ネットワーク設定:Yoloのネットワークを設定するファイル。この例では、訓練用の設定ファイル名を ~/src/darknet/cfg/wrs_train.cfgとしている。
+
+cd ~/src/darknet/cfg
+cp yolov3-voc.cfg  wrs_train.cfg
+wrs_train.cfgの１?7行目を以下のように変更する。[net]
+
+# Testing
+#batch=1
+#subdivisions=1
+# Training
+batch=64
+subdivisions=16 # 16
+
+次に、wrs_train.cfgのclassesとfiltersを変更する。6箇所ある。例えばクラス数が３の場合は次のように変更する。
+filters=(クラス数+5)*3なので、filtersは24となる。git cloneした日時でファイルの中身が違うことがわかりました。
+行数は変わりますので、filters=75、classes=20で検索して変更してください。
+
+605行目 filters=24
+611行目 classes=3
+689行目 filters=24
+695行目 classes=3
+773行目 filters=24
+779行目 classes=3
+
+■3. ネットワークのウェイトを保存する間隔を変更
+~/src/darknet/examples/detector.cでは、ネットワークのウェイトを保存する間隔は138行目で次のようになっている。
+つまり、学習回数が1000回未満のときは100回毎に保存し、それ以降は10000回毎に保存する。なお、ウェイトはデータ設定ファイルでしたディレクトリbackupに保存される。
+
+if (i%10000==0 || (i < 1000 && i%100 == 0)) {
+これを20000回までは1000回毎にも保存したければ次のように変更する。
+if (i%10000==0 || (i <= 1000 && i%100 == 0)||  (i <=20000 && i % 1000 ==0)) {
+
+■4. 学 習
+Imagenetで学習済みのウェイトを使うのでダウンロードする。
+cd ~/src/darknet
+wget https://pjreddie.com/media/files/darknet53.conv.74
+
+●次のコマンドで学習する。
+cd ~/src/darknet
+
+◆コンピュータにNVIDIAのGPUを1個搭載している場合
+./darknet detector train cfg/wrs.data cfg/wrs_train.cfg darknet53.conv.74
+
+◆GPUを2個搭載している場合
+./darknet detector train cfg/wrs.data cfg/wrs_train.cfg darknet53.conv.74 -gpus 0,1
+
+なお、学習の終了条件は、wrs.cfgファイルの20行目で次のように50万200回と大きな値になっているので適宜変更する。
+max_batches = 500200
+
+■5. テスト
+学習で自動的に保存されたウェイトを使ってテストする。
+
+テスト用設定ファイルの作成
+cd ~/src/darknet/cfg
+cp wrs_train.cfg wrs_test.cfg
+wrs_test.cfgの１?7行目を以下のように変更する。[net]
+# Testing
+batch=1
+subdivisions=1
+# Training
+#batch=64
+#subdivisions=16 # 16
+
+画像
+
+./darknet detector test cfg/wrs.data cfg/wrs_test.cfg ~/data/wrs/backup/wrs_10000.weights  ~/data/wrs/training_images/test.jpg
+上の例で最後から２番目の引数はbackupに保存された10000回学習したウェイト、最後はテストする画像ファイルなので適宜変更してください。
+
+カメラ
+./darknet detector demo cfg/wrs.data cfg/wrs_test.cfg ~/data/wrs/backup/wrs_10000.weights
+
+以上
