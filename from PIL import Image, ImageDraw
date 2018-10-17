@@ -1,0 +1,78 @@
+from PIL import Image, ImageDraw
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+import pandas as pd
+
+%matplotlib inline
+
+def get_rect(center, w, h):
+    w = int(w)
+    h = int(h)
+    x, y = center
+    x1 = int(x - w / 2 )
+    y1 = int(y - h / 2)
+    
+    return x1, y1, x1 + w, y1 + h
+
+
+def draw_rectangle(draw, coordinates, color, width): 
+
+    i = 0
+    for i in range(width): 
+        
+        rect_start = (coordinates[0][0] - i, coordinates[0][1] - i) 
+        rect_end = (coordinates[1][0] + i, coordinates[1][1] + i) 
+        draw.rectangle((rect_start, rect_end), outline = color) 
+        i+=1
+
+
+def draw_rectangles(w, h, cx, cy, angle):
+
+    # boundingbox用の画像を生成する
+    buff = 100
+    half_buff = buff/2
+
+    overlay = Image.new('RGBA', (w + buff, h + buff))
+    draw = ImageDraw.Draw(overlay)
+    x1, y1, x2, y2 = get_rect((cx, cy), w, h)
+       
+    draw_rectangle(draw, ((half_buff, half_buff), (w+half_buff, h+half_buff)), color=(0, 255, 0), width=5)
+
+    # 画像を回転させる
+    rotated = overlay.rotate(angle)
+    im.paste(rotated, (int(x1-half_buff), int(y1-half_buff)), rotated)
+
+    # 回転前のboundingbox
+    draw1 = ImageDraw.Draw(im)
+    draw_rectangle(draw1, ((x1, y1), (x2, y2)), color=(255, 0, 0), width=4)     
+        
+
+im = Image.open('demo.tif')
+
+# 465.837522204 627.858738166 256.753745594 207.864144608 1 16.5859465751 1.0
+# 262.597336833 152.69555652 287.811689191 225.521194166 1 15.5876267039 1.0
+# 352.980308508 391.275265862 302.487150641 232.075637204 1 14.6078637892 1.0
+
+
+cx, cy, w, h = 465.837525364, 627.858731845, 256.753741002, 207.864159476
+w, h = int(w), int(h)
+angle = 16.5859465751
+
+draw_rectangles(w, h, cx, cy, angle)
+
+cx, cy, w, h = 262.597336833, 152.69555652, 287.811689191, 225.521194166
+w, h = int(w), int(h)
+angle = 15.5876267039
+
+draw_rectangles(w, h, cx, cy, angle)
+
+
+cx, cy, w, h = 352.980308508, 391.275265862, 302.487150641, 232.075637204 
+w, h = int(w), int(h)
+angle = 14.6078637892
+
+draw_rectangles(w, h, cx, cy, angle)
+
+
+plt.figure(figsize=(5,5),dpi=100) 
+plt.imshow(im), plt.show()
